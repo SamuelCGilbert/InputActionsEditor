@@ -160,7 +160,9 @@ class NavController extends Notifier<NavState> {
   void closeSettings() {
     if (state.canBack) {
       if (state.history[state.cursor - 1]
-          case GesturesDestination() || HistoryDestination()) {
+          case GesturesDestination() ||
+              HistoryDestination() ||
+              ExceptionsDestination()) {
         back();
         return;
       }
@@ -177,6 +179,7 @@ final currentViewProvider = Provider<AppView>((ref) {
   return switch (ref.watch(navProvider).current) {
     GesturesDestination() => AppView.gestures,
     HistoryDestination() => AppView.history,
+    ExceptionsDestination() => AppView.exceptions,
     SettingsDestination() => AppView.settings,
   };
 });
