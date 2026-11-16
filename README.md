@@ -1,3 +1,34 @@
+> [!NOTE]
+> **This is an unofficial fork of Input Actions Editor.** Its developers don't
+> support it, so please don't send them reports about it. The official project
+> is [Luwx/InputActionsEditor](https://github.com/Luwx/InputActionsEditor).
+
+# Input Actions Editor with gesture exceptions (unofficial)
+
+This fork adds one feature:
+
+| Change | Works on |
+|---|---|
+| An **Exceptions** page in the sidebar for turning mouse gestures off in chosen apps. It can read the app name from the window under the pointer. | Wherever Input Actions runs (tested on KDE Plasma 6, Wayland) |
+
+Before, exceptions could only be set in the condition editor of a group.
+
+Tested on KDE Plasma 6.8 (Wayland) on Ubuntu. It was written with help from an
+AI assistant (Claude). It's shared as-is, with no promise of support.
+
+To use it, clone this fork and follow [Building](#building) below:
+
+```sh
+git clone -b wayland https://github.com/SamuelCGilbert/InputActionsEditor.git
+```
+
+This fork is updated with new releases from time to time. The change is on the
+`wayland` branch; `main` is an unchanged copy of the official project.
+
+*The original README follows.*
+
+---
+
 <h1 align="center">Input Actions Editor</h1>
 
 <p align="center">A desktop GUI for configuring <a href="https://github.com/taj-ny/InputActions">Input Actions</a>.</p>
