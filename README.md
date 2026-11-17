@@ -16,7 +16,18 @@ Before, exceptions could only be set in the condition editor of a group.
 Tested on KDE Plasma 6.8 (Wayland) on Ubuntu. It was written with help from an
 AI assistant (Claude). It's shared as-is, with no promise of support.
 
-To use it, clone this fork and follow [Building](#building) below:
+To install it, download a package from the
+[latest release](https://github.com/SamuelCGilbert/InputActionsEditor/releases/latest).
+It replaces Input Actions Editor if you already have it.
+
+```sh
+sudo apt install ./input-actions-editor_*_amd64.deb     # Ubuntu 24.04 or newer, KDE neon, Debian 13
+sudo dnf install ./input-actions-editor-*-x86_64.rpm    # Fedora 43 or newer
+```
+
+There is also an AppImage, which runs without installing, and a tarball.
+
+To build it yourself, clone this fork and follow [Building](#building) below:
 
 ```sh
 git clone -b wayland https://github.com/SamuelCGilbert/InputActionsEditor.git

@@ -1,194 +1,53 @@
+# Builds the packages of this unofficial fork (.deb, .rpm, AppImage, tarball).
+# Pushing a tag such as v0.9.0-wayland.1 builds them and publishes a release.
+# Running it by hand from the Actions tab only builds them.
 name: Release
 
 on:
   push:
-    tags: ['v*']
-
-env:
-  APP_ID: dev.luwx.input_actions_editor
-  APP_NAME: input-actions-editor
-  BINARY_NAME: input_actions_editor
+    tags:
+      - 'v*-wayland*'
+  workflow_dispatch:
 
 jobs:
-  release:
-    runs-on: ubuntu-26.04
-
-    permissions:
-      contents: write
-
-    env:
-      COPR_API_TOKEN: ${{ secrets.COPR_API_TOKEN }}
-
+  build:
+    name: Build packages
+    runs-on: ubuntu-24.04
+    container: ubuntu:24.04
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          flutter-version: 3.44.x
-          cache: true
-
-      - name: Install Linux build dependencies
-        run: |
-          sudo apt-get update -q
-          sudo apt-get install -y --no-install-recommends \
-            clang cmake ninja-build pkg-config build-essential \
-            libgtk-3-dev liblzma-dev \
-            qt6-base-dev extra-cmake-modules \
-            libkf6iconthemes-dev libkf6service-dev
-
-      - name: Install packaging tools
-        run: |
-          sudo apt-get install -y --no-install-recommends ruby-dev rpm
-          sudo gem install --no-document fpm
-          wget -qO /usr/local/bin/appimagetool \
-            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x /usr/local/bin/appimagetool
-
-      - name: Flutter pub get
-        run: flutter pub get
-
-      - name: Generate code
-        run: dart run build_runner build
+      - uses: actions/checkout@v6
 
       - name: Build
-        run: flutter build linux --release
-
-      - name: Verify KDE helpers were built
         run: |
-          BUNDLE=build/linux/x64/release/bundle
-          test -x "$BUNDLE/kde_icon_lookup" || { echo "kde_icon_lookup missing"; exit 1; }
-          test -x "$BUNDLE/kde_key_lookup" || { echo "kde_key_lookup missing"; exit 1; }
-          echo "KDE helpers built successfully."
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            export VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          packaging/wayland-fork/build.sh
 
-      - name: Stage FHS layout
-        run: |
-          BUNDLE=build/linux/x64/release/bundle
-          STAGE=packaging/stage
-
-          mkdir -p "$STAGE/opt/$APP_NAME"
-          cp -r "$BUNDLE"/. "$STAGE/opt/$APP_NAME/"
-          rm -f "$STAGE/opt/$APP_NAME/data/flutter_assets/kernel_blob.bin"
-
-          mkdir -p "$STAGE/usr/bin"
-          {
-            echo '#!/bin/sh'
-            printf 'exec /opt/%s/%s "$@"\n' "$APP_NAME" "$BINARY_NAME"
-          } > "$STAGE/usr/bin/$BINARY_NAME"
-          chmod +x "$STAGE/usr/bin/$BINARY_NAME"
-
-          mkdir -p "$STAGE/usr/share/applications"
-          cp "linux/$APP_ID.desktop" "$STAGE/usr/share/applications/"
-
-          for size in 16 32 48 64 128 256 512; do
-            mkdir -p "$STAGE/usr/share/icons/hicolor/${size}x${size}/apps"
-            cp "linux/icons/${size}x${size}/apps/$APP_ID.png" \
-               "$STAGE/usr/share/icons/hicolor/${size}x${size}/apps/"
-          done
-
-      - name: Build .deb
-        run: |
-          VERSION=${GITHUB_REF_NAME#v}
-          fpm -s dir -t deb \
-            --name "$APP_NAME" \
-            --version "$VERSION" \
-            --architecture amd64 \
-            --description "Input Actions configurator for managing shortcuts and input bindings." \
-            --maintainer "Luwx" \
-            --depends "libgtk-3-0 (>= 3.24)" \
-            --depends libglib2.0-0 \
-            --depends libstdc++6 \
-            --deb-compression xz \
-            --package "packaging/${APP_NAME}_${VERSION}_amd64.deb" \
-            -C packaging/stage \
-            .
-
-      - name: Build .rpm
-        run: |
-          VERSION=${GITHUB_REF_NAME#v}
-          fpm -s dir -t rpm \
-            --name "$APP_NAME" \
-            --version "$VERSION" \
-            --architecture x86_64 \
-            --description "Input Actions configurator for managing shortcuts and input bindings." \
-            --maintainer "Luwx" \
-            --depends gtk3 \
-            --depends glib2 \
-            --depends libstdc++ \
-            --package "packaging/${APP_NAME}-${VERSION}-x86_64.rpm" \
-            -C packaging/stage \
-            .
-
-      - name: Build AppImage
-        env:
-          APPIMAGE_EXTRACT_AND_RUN: "1"
-        run: |
-          VERSION=${GITHUB_REF_NAME#v}
-          BUNDLE=build/linux/x64/release/bundle
-          APPDIR=packaging/AppDir
-
-          mkdir -p "$APPDIR/bundle"
-          cp -r "$BUNDLE"/. "$APPDIR/bundle/"
-
-          {
-            echo '#!/bin/bash'
-            echo 'SELF=$(readlink -f "$0")'
-            echo 'HERE=${SELF%/*}'
-            printf 'exec "$HERE/bundle/%s" "$@"\n' "$BINARY_NAME"
-          } > "$APPDIR/AppRun"
-          chmod +x "$APPDIR/AppRun"
-
-          cp "linux/$APP_ID.desktop" "$APPDIR/"
-          cp "linux/icons/256x256/apps/$APP_ID.png" "$APPDIR/$APP_ID.png"
-
-          appimagetool "$APPDIR" \
-            "packaging/${APP_NAME}-${VERSION}-x86_64.AppImage"
-
-      - name: Build tarball
-        run: |
-          VERSION=${GITHUB_REF_NAME#v}
-          tar -czf \
-            "packaging/${APP_NAME}-${VERSION}-linux-x86_64.tar.gz" \
-            -C build/linux/x64/release \
-            bundle
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
+      - uses: actions/upload-artifact@v7
         with:
-          files: |
-            packaging/*.deb
-            packaging/*.rpm
-            packaging/*.AppImage
-            packaging/*.tar.gz
-          generate_release_notes: true
+          name: packages
+          path: packaging/out/*
 
-      - name: Publish to Fedora COPR
-        if: ${{ env.COPR_API_TOKEN != '' }}
+  release:
+    name: Publish release
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: packages
+
+      - name: Create the release and upload the packages
         env:
-          COPR_PROJECT: ${{ vars.COPR_PROJECT || 'input-actions-editor' }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
         run: |
-          export VERSION=${GITHUB_REF_NAME#v}
-
-          # dnf upgrades on NVR, so a rebuild of the same version needs the
-          # rpm release to move: it tracks the pubspec build number.
-          export RELEASE=$(grep '^version:' pubspec.yaml | sed 's/.*+//')
-
-          # Write the COPR API token (paste the whole config block from
-          # https://copr.fedorainfracloud.org/api/ into the COPR_API_TOKEN secret).
-          mkdir -p ~/.config
-          printf '%s\n' "$COPR_API_TOKEN" > ~/.config/copr
-          chmod 600 ~/.config/copr
-
-          # COPR client + rpmbuild
-          sudo apt-get install -y --no-install-recommends pipx rpm
-          pipx install copr-cli
-          pipx inject --force copr-cli rich
-          export PATH="$HOME/.local/bin:$PATH"
-
-          # Build the SRPM from the staged bundle (changelog comes from CHANGELOG.md)
-          # and submit it as a COPR build.
-          scripts/package-copr.sh
-          SRPM=$(ls packaging/input-actions-editor-${VERSION}-*.src.rpm | tail -1)
-          copr-cli build "$COPR_PROJECT" "$SRPM"
+          gh release view "$TAG" >/dev/null 2>&1 ||
+            gh release create "$TAG" --verify-tag --title "Input Actions Editor with gesture exceptions ${TAG#v}" \
+              --notes "Packages of this unofficial fork. See the README for what it adds and how to install it."
+          gh release upload "$TAG" input-actions-editor* SHA256SUMS --clobber
