@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:input_actions_editor/data/yaml_codec.dart';
+import 'package:input_actions_editor/data/config_decoder.dart';
 import 'package:input_actions_editor/domain/conditions/gesture_exceptions.dart';
 import 'package:input_actions_editor/domain/edit/edit_ids.dart';
 import 'package:input_actions_editor/domain/edit/schema/edit_schema.dart';

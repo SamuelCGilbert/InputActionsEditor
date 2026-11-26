@@ -48,6 +48,7 @@ flutter config --no-analytics >/dev/null
 
 flutter pub get
 dart run build_runner build --delete-conflicting-outputs
+flutter test
 flutter build linux --release
 BUNDLE=build/linux/x64/release/bundle
 test -x "$BUNDLE/kde_icon_lookup" && test -x "$BUNDLE/kde_key_lookup"
@@ -67,23 +68,41 @@ for size in 16 32 48 64 128 256 512; do
     "$STAGE/usr/share/icons/hicolor/${size}x${size}/apps/$APP_ID.png"
 done
 
+# The KDE helpers need Qt 6 and KDE Frameworks 6. The app works without them
+# (it only loses KDE icon and key names), so the .deb recommends them, by their
+# KDE neon names or else their Debian and Ubuntu names. The .rpm depends on
+# them, like the official one.
+DEB_RECOMMENDS=(
+  --deb-recommends "qt6-base | libqt6gui6t64 | libqt6gui6"
+  --deb-recommends "kf6-kiconthemes | libkf6iconthemes6"
+  --deb-recommends "kf6-kservice | libkf6service6"
+)
+
 # Epoch 1 so the official packages don't replace this one
 DESC="Input Actions configurator, unofficial fork with a gesture exceptions page."
 URL=https://github.com/SamuelCGilbert/InputActionsEditor
 fpm -s dir -t deb --name "$APP_NAME" --version "$PKG_VERSION" --epoch 1 --architecture amd64 \
   --description "$DESC" --maintainer "$MAINTAINER" --url "$URL" --license GPL-3.0 \
-  --depends "libgtk-3-0 (>= 3.24)" --depends libglib2.0-0 --depends libstdc++6 \
+  --depends "libgtk-3-0 (>= 3.24)" --depends libglib2.0-0 --depends libstdc++6 "${DEB_RECOMMENDS[@]}" \
   --deb-compression xz --package "$OUT/${APP_NAME}_${PKG_VERSION}_amd64.deb" -C "$STAGE" .
 fpm -s dir -t rpm --name "$APP_NAME" --version "$PKG_VERSION" --epoch 1 --architecture x86_64 \
   --description "$DESC" --maintainer "$MAINTAINER" --url "$URL" --license GPL-3.0 \
   --depends gtk3 --depends glib2 --depends libstdc++ \
+  --depends qt6-qtbase --depends qt6-qtbase-gui --depends kf6-kiconthemes --depends kf6-kservice \
   --package "$OUT/${APP_NAME}-${PKG_VERSION}-x86_64.rpm" -C "$STAGE" .
 
 # AppImage
 APPDIR=packaging/AppDir
 mkdir -p "$APPDIR/bundle"
 cp -r "$BUNDLE"/. "$APPDIR/bundle/"
-printf '#!/bin/bash\nSELF=$(readlink -f "$0")\nHERE=${SELF%%/*}\nexec "$HERE/bundle/%s" "$@"\n' "$BINARY_NAME" > "$APPDIR/AppRun"
+rm -f "$APPDIR/bundle/data/flutter_assets/kernel_blob.bin"
+{
+  echo '#!/bin/bash'
+  echo 'SELF=$(readlink -f "$0")'
+  echo 'HERE=${SELF%/*}'
+  echo 'export XDG_DATA_DIRS="$HERE/bundle/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"'
+  printf 'exec "$HERE/bundle/%s" "$@"\n' "$BINARY_NAME"
+} > "$APPDIR/AppRun"
 chmod +x "$APPDIR/AppRun"
 cp "linux/$APP_ID.desktop" "$APPDIR/"
 cp "linux/icons/256x256/apps/$APP_ID.png" "$APPDIR/$APP_ID.png"
